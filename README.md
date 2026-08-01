@@ -2,21 +2,22 @@
 
 A macOS-friendly visual engineering control system that maps a repository before themes, colors, typography, motion or component styling are changed.
 
-Source files remain untouched. Every proposal, graph, theme and test template is written into `.visual-index/` for review.
+Source files remain untouched. Every proposal, graph, theme, baseline manifest and test template is written into `.visual-index/` for review.
 
-## Current engine — v0.3
+## Current engine — v0.4
 
 - Inventories CSS/Sass/Less, components, layouts, assets, fonts and design files.
 - Detects frameworks, visual libraries, Storybook, Playwright and Cypress signals.
 - Finds color literals, CSS variables, keyframes, transitions and duplicate assets.
 - Resolves local imports and ranks dependency hotspots by visual impact.
-- Infers a semantic token contract from the existing palette.
-- Generates `light`, `dark`, `blackmamba` and `high-contrast` themes.
+- Infers semantic tokens and generates light, dark, BlackMamba and high-contrast themes.
 - Corrects generated contrast pairs and records WCAG evidence.
 - Discovers Next.js, Nuxt, SvelteKit, Astro and static HTML routes.
 - Generates a Playwright screenshot matrix across themes and viewports.
 - Calculates the transitive visual blast radius of changed files.
-- Produces a phased migration plan instead of blindly rewriting a project.
+- Inventories screenshot baselines with SHA-256, byte size and PNG dimensions.
+- Compares baseline manifests and reports added, removed, changed and unchanged images.
+- Produces a safe Playwright runner that never installs dependencies silently.
 
 ## Install on Mac
 
@@ -26,7 +27,7 @@ cd tmas
 python3 -m pip install --user -e .
 ```
 
-Scan a project and open its control dashboard:
+Scan a project and open its dashboard:
 
 ```bash
 visual-index /path/to/project --open
@@ -34,19 +35,41 @@ visual-index /path/to/project --open
 
 ## Changed-file impact
 
-Analyze a branch against `main`:
-
 ```bash
 visual-index . --git-base origin/main --open
 ```
 
-Or pass paths explicitly:
+Or pass files explicitly:
 
 ```bash
 visual-index . \
   --changed src/theme/tokens.ts \
   --changed src/components/Button.tsx
 ```
+
+## Baseline lifecycle
+
+Inventory an existing screenshot directory:
+
+```bash
+visual-index . --baseline-dir tests/visual-snapshots
+```
+
+Compare it with a previously committed manifest:
+
+```bash
+visual-index . \
+  --baseline-dir tests/visual-snapshots \
+  --compare-baseline .visual-index-previous/baseline-manifest.json
+```
+
+Run the generated screenshot plan only after your application is running:
+
+```bash
+.visual-index/run-visual-baseline.sh
+```
+
+The runner uses `npx --no-install`; it stops with explicit setup instructions when Playwright is missing. It never downloads packages or browsers on its own.
 
 ## Generated control room
 
@@ -66,10 +89,13 @@ visual-index . \
 ├── playwright.visual.config.ts
 ├── VISUAL_REGRESSION.md
 ├── change-impact.json
-└── CHANGE_IMPACT.md
+├── CHANGE_IMPACT.md
+├── baseline-manifest.json
+├── baseline-diff.json
+├── BASELINE.md
+├── PR_VISUAL_SUMMARY.md
+└── run-visual-baseline.sh
 ```
-
-Dynamic routes such as `/artists/:id` are detected but remain disabled until a real example URL is supplied.
 
 ## CI guard
 
@@ -77,34 +103,15 @@ Dynamic routes such as `/artists/:id` are detected but remain disabled until a r
 visual-index . --check
 ```
 
-`--check` exits non-zero when either repository migration risk or changed-file impact reaches `critical`.
-
-## Architecture
-
-```text
-Repository
-   ↓
-Scanner
-   ├── files / roles / assets
-   ├── colors / variables / motion
-   ├── imports / dependency edges
-   └── routes / stories / test surfaces
-   ↓
-Dependency graph + impact scoring
-   ├── semantic themes + WCAG audit
-   ├── visual regression matrix
-   └── changed-file blast radius
-   ↓
-Dashboard + plans + Playwright templates + CI signal
-```
+`--check` exits non-zero when repository migration risk, changed-file impact or baseline-diff risk reaches `critical`.
 
 ## Safety contract
 
-1. The scanner is read-only.
-2. Generated themes never overwrite application source.
-3. Dynamic routes are not guessed into active screenshot runs.
-4. Tokens remain proposals until reviewed and integrated.
-5. Changed-file impact follows reverse dependencies up to three levels.
+1. Source projects are read-only.
+2. Generated themes never overwrite application code.
+3. Dynamic routes remain disabled until concrete examples are supplied.
+4. Baseline comparison uses hashes and metadata; it does not mutate screenshots.
+5. The generated runner refuses implicit package installation.
 6. Reduced-motion behavior is built into every generated theme.
 
 ## Development
@@ -117,8 +124,8 @@ python3 -m visual_index . --output /tmp/tmas-self-scan --check
 
 ## Next layer
 
-- Screenshot execution orchestration and baseline storage
+- Actual pixel-diff metrics and image heatmaps
 - GitHub PR annotations with visual risk summaries
+- Baseline artifacts published from CI
 - Controlled token adoption with preview/apply/undo
 - Figma token export/import adapters
-- Cross-repository visual system inventory

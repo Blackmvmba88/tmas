@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .baseline import compare_baselines, inventory_baseline, load_manifest
 from .catalog import DEFAULT_EXCLUDES
 from .change_impact import git_changed_paths
 from .render import write_reports
@@ -24,8 +25,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--check", action="store_true", help="Exit non-zero when critical visual risks are detected")
     parser.add_argument("--git-base", help="Analyze changed-file impact against a Git ref, for example origin/main")
     parser.add_argument("--changed", action="append", default=[], help="Explicit changed path; repeatable")
+    parser.add_argument("--baseline-dir", help="Screenshot directory to inventory")
+    parser.add_argument("--compare-baseline", help="Previous baseline-manifest.json to compare")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
+
+
+def _resolve_from_root(root: Path, value: str | None) -> Path | None:
+    if not value:
+        return None
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else root / path
 
 
 def main() -> int:
@@ -63,16 +73,39 @@ def main() -> int:
             print(f"[visual-index] git diff warning: {git_error}", file=sys.stderr)
     changed_paths = sorted(set(changed_paths))
 
-    write_reports(data, output, changed_paths=changed_paths)
-    migration_risk = data["derived"]["change_plan"]["risk"]
-    change_risk = data["derived"]["change_impact"]["risk"]
-    risk = migration_risk if migration_risk["score"] >= change_risk["score"] else change_risk
+    baseline_dir = _resolve_from_root(root, args.baseline_dir)
+    baseline_manifest = inventory_baseline(baseline_dir)
+    previous_manifest = None
+    previous_path = _resolve_from_root(root, args.compare_baseline)
+    if previous_path:
+        try:
+            previous_manifest = load_manifest(previous_path)
+        except (OSError, ValueError) as error:
+            data["diagnostics"]["baseline_manifest_error"] = str(error)
+            print(f"[visual-index] baseline warning: {error}", file=sys.stderr)
+    baseline_diff = compare_baselines(previous_manifest, baseline_manifest)
+
+    write_reports(
+        data,
+        output,
+        changed_paths=changed_paths,
+        baseline_manifest=baseline_manifest,
+        baseline_diff=baseline_diff,
+    )
+    risks = (
+        data["derived"]["change_plan"]["risk"],
+        data["derived"]["change_impact"]["risk"],
+        data["derived"]["baseline_diff"]["risk"],
+    )
+    risk = max(risks, key=lambda item: item["score"])
     print(f"[visual-index] indexed {len(data['files'])} files · risk {risk['level']} ({risk['score']}/100)")
     for filename in (
         "visual-index.html", "VISUAL_INDEX.md", "visual-index.json", "semantic-tokens.json",
         "themes.css", "accessibility-audit.json", "dependency-graph.json", "MIGRATION_PLAN.md",
         "visual-regression-plan.json", "visual-regression.spec.ts", "playwright.visual.config.ts",
         "VISUAL_REGRESSION.md", "change-impact.json", "CHANGE_IMPACT.md",
+        "baseline-manifest.json", "baseline-diff.json", "BASELINE.md",
+        "PR_VISUAL_SUMMARY.md", "run-visual-baseline.sh",
     ):
         print(f"[visual-index] generated: {output / filename}")
     if args.open:

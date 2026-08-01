@@ -165,9 +165,40 @@ def render_visual_regression_markdown(plan: dict[str, Any]) -> str:
         lines.append("| _None detected_ | | | |")
     lines += ["", "## Capture matrix", ""]
     lines.append("- Themes: " + ", ".join(f"`{theme}`" for theme in plan["themes"]))
-    lines.append("- Viewports: " + ", ".join(
-        f"`{item['name']} {item['width']}×{item['height']}`" for item in plan["viewports"]
-    ))
+    lines.append("- Viewports: " + ", ".join(f"`{item['name']} {item['width']}×{item['height']}`" for item in plan["viewports"]))
     if plan["dynamic_routes_require_examples"]:
         lines += ["", "> Dynamic routes are disabled until concrete example URLs are supplied."]
     return "\n".join(lines) + "\n"
+
+
+def render_baseline_runner(plan: dict[str, Any]) -> str:
+    base_url = plan["base_url"]
+    return f'''#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
+BASE_URL="${{VISUAL_INDEX_BASE_URL:-{base_url}}}"
+
+if ! command -v npx >/dev/null 2>&1; then
+  echo "error: npx is required. Install Node.js first." >&2
+  exit 2
+fi
+
+if ! npx --no-install playwright --version >/dev/null 2>&1; then
+  echo "error: Playwright is not installed in this project." >&2
+  echo "Install it explicitly with: npm install -D @playwright/test" >&2
+  echo "Then install browsers explicitly with: npx playwright install" >&2
+  exit 2
+fi
+
+if command -v curl >/dev/null 2>&1; then
+  if ! curl --silent --fail --max-time 5 "$BASE_URL" >/dev/null; then
+    echo "error: application is not reachable at $BASE_URL" >&2
+    echo "Start the application or set VISUAL_INDEX_BASE_URL." >&2
+    exit 3
+  fi
+fi
+
+cd "$SCRIPT_DIR"
+exec npx --no-install playwright test --config playwright.visual.config.ts "$@"
+'''
