@@ -11,7 +11,8 @@ from typing import Any, Iterable
 from .catalog import (
     ASSET_EXTENSIONS, CATEGORY_EXTENSIONS, COLOR_PATTERNS, CSS_VAR_DEF,
     CSS_VAR_USE, FONT_EXTENSIONS, FRAMEWORK_PATTERNS, IMPORT_RE, KEYFRAMES,
-    MOTION_DECLARATION, PRIORITY_NAMES, TEXT_EXTENSIONS,
+    MOTION_DECLARATION, PRIORITY_NAMES, STYLE_IMPORT_RE, TEXT_EXTENSIONS,
+    URL_REFERENCE_RE,
 )
 
 
@@ -77,7 +78,7 @@ def _roles(relative_path: str, filename: str, text: str | None) -> list[str]:
     lower = relative_path.lower()
     stem = Path(filename).stem.lower()
     roles: set[str] = set()
-    if filename in PRIORITY_NAMES:
+    if filename in PRIORITY_NAMES or relative_path in PRIORITY_NAMES:
         roles.add("priority")
     if any(value in lower for value in ("/theme", "/themes", "theme.", "/tokens", "token.", "design-system")):
         roles.add("theme_or_tokens")
@@ -87,6 +88,10 @@ def _roles(relative_path: str, filename: str, text: str | None) -> list[str]:
         roles.add("ui_surface")
     if any(value in lower for value in ("/assets/", "/images/", "/icons/", "/fonts/", "/public/", "/static/")):
         roles.add("asset_source")
+    if ".stories." in lower:
+        roles.add("visual_test_surface")
+    if any(value in lower for value in ("playwright", "cypress", "storybook")):
+        roles.add("visual_test_config")
     if text:
         if ":root" in text or "[data-theme" in text or ".dark" in text:
             roles.add("theme_scope")
@@ -107,6 +112,7 @@ def scan_project(root: Path, max_file_bytes: int, excludes: set[str], include_hi
     keyframes: dict[str, list[str]] = collections.defaultdict(list)
     motion_files: collections.Counter[str] = collections.Counter()
     imports: dict[str, list[str]] = {}
+    asset_references: dict[str, list[str]] = {}
     skipped_large: list[str] = []
     unreadable: list[str] = []
 
@@ -149,7 +155,7 @@ def scan_project(root: Path, max_file_bytes: int, excludes: set[str], include_hi
                     normalized = re.sub(r"\s+", " ", value.strip()).lower()
                     colors[kind][normalized] += 1
                     literal_count += 1
-                    if len(color_locations[normalized]) < 20:
+                    if relative_path not in color_locations[normalized] and len(color_locations[normalized]) < 20:
                         color_locations[normalized].append(relative_path)
             if literal_count:
                 record["color_literal_count"] = literal_count
@@ -162,9 +168,12 @@ def scan_project(root: Path, max_file_bytes: int, excludes: set[str], include_hi
             if declaration_count:
                 motion_files[relative_path] += declaration_count
                 record["motion_declaration_count"] = declaration_count
-            found_imports = sorted(set(IMPORT_RE.findall(text)))
+            found_imports = sorted(set(IMPORT_RE.findall(text)) | set(STYLE_IMPORT_RE.findall(text)))
             if found_imports:
                 imports[relative_path] = found_imports[:200]
+            found_assets = sorted({value for value in URL_REFERENCE_RE.findall(text) if not value.startswith("data:")})
+            if found_assets:
+                asset_references[relative_path] = found_assets[:200]
         files.append(record)
 
     categories = collections.Counter(item["category"] for item in files)
@@ -196,17 +205,20 @@ def scan_project(root: Path, max_file_bytes: int, excludes: set[str], include_hi
         })
     if undefined_variables:
         recommendations.append({
-            "level": "high", "title": "Resolve undefined CSS variables",
+            "level": "high",
+            "title": "Resolve undefined CSS variables",
             "detail": f"{len(undefined_variables)} variables are used without a scanned definition.",
         })
     if keyframes or motion_files:
         recommendations.append({
-            "level": "medium", "title": "Create a motion policy",
+            "level": "medium",
+            "title": "Create a motion policy",
             "detail": "Standardize duration, easing and reduced-motion behavior before expanding animation.",
         })
     if duplicates:
         recommendations.append({
-            "level": "low", "title": "Deduplicate visual assets",
+            "level": "low",
+            "title": "Deduplicate visual assets",
             "detail": f"Found {len(duplicates)} groups of byte-identical assets.",
         })
 
@@ -222,6 +234,8 @@ def scan_project(root: Path, max_file_bytes: int, excludes: set[str], include_hi
             "keyframes": len(keyframes),
             "motion_declarations": sum(motion_files.values()),
             "duplicate_asset_groups": len(duplicates),
+            "importing_files": len(imports),
+            "asset_reference_files": len(asset_references),
         },
         "priority_files": priority_files,
         "files": sorted(files, key=lambda item: item["path"]),
@@ -238,10 +252,17 @@ def scan_project(root: Path, max_file_bytes: int, excludes: set[str], include_hi
                 "used_but_not_defined": undefined_variables,
                 "defined_but_not_used": sorted(set(variable_definitions) - set(variable_uses)),
             },
-            "motion": {"keyframes": dict(sorted(keyframes.items())), "files": dict(motion_files.most_common())},
+            "motion": {
+                "keyframes": dict(sorted(keyframes.items())),
+                "files": dict(motion_files.most_common()),
+            },
             "imports": dict(sorted(imports.items())),
+            "asset_references": dict(sorted(asset_references.items())),
             "duplicate_assets": duplicates,
         },
         "recommendations": recommendations,
-        "diagnostics": {"large_text_files_skipped": skipped_large, "unreadable_files": unreadable},
+        "diagnostics": {
+            "large_text_files_skipped": skipped_large,
+            "unreadable_files": unreadable,
+        },
     }
