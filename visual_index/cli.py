@@ -23,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--include-hidden", action="store_true", help="Include hidden paths")
     parser.add_argument("--exclude", action="append", default=[], help="Extra directory name to exclude")
     parser.add_argument("--open", action="store_true", help="Open HTML dashboard on macOS")
-    parser.add_argument("--check", action="store_true", help="Exit non-zero when critical visual risks are detected")
+    parser.add_argument("--check", action="store_true", help="Exit non-zero when visual policy checks fail")
     parser.add_argument("--git-base", help="Analyze changed-file impact against a Git ref, for example origin/main")
     parser.add_argument("--changed", action="append", default=[], help="Explicit changed path; repeatable")
     parser.add_argument("--baseline-dir", help="Current screenshot directory to inventory and compare")
@@ -134,6 +134,11 @@ def main() -> int:
         data["derived"]["pixel_diff"]["risk"],
     )
     risk = max(risks, key=lambda item: item["score"])
+    pixel_failures = (
+        pixel_diff["summary"]["failed"]
+        + pixel_diff["summary"]["dimension_mismatches"]
+        + pixel_diff["summary"]["errors"]
+    )
     print(f"[visual-index] indexed {len(data['files'])} files · risk {risk['level']} ({risk['score']}/100)")
     for filename in (
         "visual-index.html", "VISUAL_INDEX.md", "visual-index.json", "semantic-tokens.json",
@@ -148,14 +153,17 @@ def main() -> int:
         print(
             "[visual-index] pixel diff: "
             f"{pixel_diff['summary']['passed']} passed · "
-            f"{pixel_diff['summary']['failed']} failed · "
-            f"{pixel_diff['summary']['dimension_mismatches']} dimension mismatches"
+            f"{pixel_diff['summary']['unchanged']} unchanged · "
+            f"{pixel_failures} require review"
         )
     if args.open:
         if sys.platform == "darwin":
             subprocess.run(["open", str(output / "visual-index.html")], check=False)
         else:
             print("[visual-index] --open is currently available on macOS", file=sys.stderr)
+    if args.check and pixel_diff["enabled"] and pixel_failures:
+        print("[visual-index] pixel comparison threshold failed", file=sys.stderr)
+        return 1
     if args.check and risk["level"] == "critical":
         print("[visual-index] critical visual risk detected", file=sys.stderr)
         return 1
