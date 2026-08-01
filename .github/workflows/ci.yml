@@ -4,14 +4,26 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: visual-index-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -19,10 +31,57 @@ jobs:
       - run: python -m pip install -e .
       - run: python -m compileall -q visual_index
       - run: python -m unittest discover -s tests -v
-      - run: python -m visual_index . --output /tmp/visual-index-self-test --check
+      - name: Build repository visual report
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            python -m visual_index . \
+              --output /tmp/visual-index-self-test \
+              --git-base "${{ github.event.pull_request.base.sha }}" \
+              --check
+          else
+            python -m visual_index . --output /tmp/visual-index-self-test --check
+          fi
+      - name: Add report to job summary
+        if: always() && matrix.python-version == '3.12'
+        run: |
+          if [[ -f /tmp/visual-index-self-test/PR_VISUAL_SUMMARY.md ]]; then
+            cat /tmp/visual-index-self-test/PR_VISUAL_SUMMARY.md >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v4
         if: always() && matrix.python-version == '3.12'
         with:
           name: visual-index-self-scan
           path: /tmp/visual-index-self-test
           if-no-files-found: error
+      - name: Publish or update PR visual report
+        if: success() && github.event_name == 'pull_request' && matrix.python-version == '3.12'
+        uses: actions/github-script@v7
+        env:
+          SUMMARY_PATH: /tmp/visual-index-self-test/PR_VISUAL_SUMMARY.md
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- blackmamba-visual-index-report -->';
+            const summary = fs.readFileSync(process.env.SUMMARY_PATH, 'utf8');
+            const body = `${marker}\n${summary}\n---\n` +
+              `Full evidence is attached to workflow run ${context.runId} as ` +
+              '`visual-index-self-scan`.';
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 }
+            );
+            const existing = comments.find(
+              comment => comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
