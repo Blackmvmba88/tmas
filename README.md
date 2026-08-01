@@ -1,116 +1,102 @@
 # BlackMamba Visual Index
 
-A read-only macOS-friendly CLI that builds a complete **visual change impact index** before you modify themes, colors, typography, animation, assets, or UI components.
+A macOS-friendly visual engineering system that maps a repository before themes, colors, typography, motion or component styling are changed.
 
-It does not rewrite project files. It only scans and creates reports.
+Source files remain untouched. Every proposal is written into `.visual-index/` for review.
 
-## What it indexes
+## Current engine
 
-- Global CSS, Sass, Less and Stylus files
-- Theme files and design-token candidates
-- CSS custom properties and their usage
-- Hex, RGB/RGBA and HSL/HSLA color literals
-- Keyframes, transitions and animation declarations
-- React, Vue, Svelte, Astro, SwiftUI, Compose and Flutter UI files
-- Tailwind, MUI, Chakra, styled-components, Emotion and Ant Design signals
-- Framer Motion, GSAP, Lottie, Rive, Three.js, Anime.js and React Spring
-- Images, icons, fonts, videos and editable design assets
-- Byte-identical duplicate assets
-- Priority entry files, layouts, screens and theme scopes
-- Basic import relationships for machine processing
+- Inventories CSS/Sass/Less, components, layouts, assets, fonts and design files.
+- Detects frameworks, visual libraries, Storybook, Playwright and Cypress signals.
+- Finds color literals, CSS variables, keyframes, transitions and duplicate assets.
+- Resolves local imports and ranks dependency hotspots by visual impact.
+- Infers a semantic token contract from the existing palette.
+- Generates `light`, `dark`, `blackmamba` and `high-contrast` themes.
+- Audits generated foreground/background pairs against WCAG contrast thresholds.
+- Produces a phased migration plan instead of blindly rewriting a project.
 
-## Fastest start on Mac
+## Install on Mac
 
 ```bash
-unzip blackmamba-visual-index.zip
-cd blackmamba-visual-index
-chmod +x install.sh
-./install.sh
-source ~/.zshrc
+git clone https://github.com/Blackmvmba88/tmas.git
+cd tmas
+python3 -m pip install --user -e .
 ```
 
-Then enter any project:
+Then scan any repository:
 
 ```bash
-cd /path/to/your/project
+visual-index /path/to/project --open
+```
+
+Or scan the current project:
+
+```bash
 visual-index . --open
 ```
 
-The browser opens:
-
-```text
-.visual-index/visual-index.html
-```
-
-The same scan also creates:
+## Generated control room
 
 ```text
 .visual-index/
-├── VISUAL_INDEX.md       # Human review
-├── visual-index.html     # Visual dashboard
-└── visual-index.json     # Automation / agent input
+├── visual-index.html          # Visual dashboard
+├── VISUAL_INDEX.md            # Human-readable architecture map
+├── visual-index.json          # Complete machine-readable model
+├── semantic-tokens.json       # Inferred semantic contract
+├── themes.css                 # Four generated themes + reduced motion
+├── accessibility-audit.json   # Contrast evidence
+├── dependency-graph.json      # Nodes, edges and impact scores
+├── dependency-graph.dot       # Graphviz source
+└── MIGRATION_PLAN.md          # Ordered rollout plan
 ```
 
-## Run without installing
+## CI guard
 
 ```bash
-python3 visual_indexer.py /path/to/project --open
+visual-index . --check
 ```
 
-## Useful commands
+`--check` exits non-zero when the migration risk reaches `critical`, allowing repositories to block unsafe visual changes.
 
-```bash
-# Scan current project
-visual-index .
-
-# Open dashboard after scan
-visual-index . --open
-
-# Put report in another folder
-visual-index . --output reports/visual-system
-
-# Inspect text files up to 8 MB
-visual-index . --max-file-mb 8
-
-# Exclude an extra generated directory
-visual-index . --exclude generated
-
-# Include hidden project folders
-visual-index . --include-hidden
-```
-
-## Recommended workflow before visual changes
+## Architecture
 
 ```text
-1. Scan
-2. Review priority files
-3. Identify semantic tokens
-4. Build theme contract
-5. Change tokens first
-6. Update exceptional components
-7. Add motion policy and reduced-motion handling
-8. Capture screenshots
-9. Run visual regression
-10. Merge
+Repository
+   ↓
+Scanner
+   ├── files / roles / assets
+   ├── colors / variables / motion
+   └── imports / visual test surfaces
+   ↓
+Dependency graph + impact scoring
+   ↓
+Semantic token inference
+   ↓
+Theme generator + WCAG audit
+   ↓
+Dashboard + migration plan + CI signal
 ```
 
-## Suggested repository integration
+## Safety contract
 
-Add generated output to `.gitignore` when it is only local:
+1. The scanner is read-only.
+2. Generated themes never overwrite application source.
+3. Tokens are proposals until reviewed and integrated.
+4. High-impact files are migrated first and verified with screenshots.
+5. Reduced-motion behavior is part of the theme contract, not an afterthought.
 
-```gitignore
-.visual-index/
+## Development
+
+```bash
+python3 -m compileall -q visual_index
+python3 -m unittest discover -s tests -v
+python3 -m visual_index . --output /tmp/tmas-self-scan --check
 ```
 
-Or commit `VISUAL_INDEX.md` when you want the repository to maintain a visual architecture map.
+## Roadmap
 
-## Next layer
-
-The JSON output is intentionally structured so a second tool can:
-
-- Generate a central token file
-- Produce light/dark/high-contrast themes
-- Build a dependency graph
-- Apply controlled palette migrations
-- Create screenshot test routes
-- Detect visual changes in pull requests
+- Screenshot route discovery and Playwright baseline generation
+- Git diff-aware visual impact reports
+- Controlled token adoption with preview/apply/undo
+- Figma token export/import adapters
+- Pull-request annotations for visual risk and contrast regressions

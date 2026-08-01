@@ -1,0 +1,19 @@
+{
+  "project": ".",
+  "output": ".visual-index",
+  "max_file_mb": 2,
+  "include_hidden": false,
+  "additional_excludes": ["generated", "tmp"],
+  "future": {
+    "semantic_token_targets": [
+      "color.background.canvas",
+      "color.background.surface",
+      "color.text.primary",
+      "color.text.muted",
+      "color.action.primary",
+      "motion.duration.fast",
+      "motion.duration.normal",
+      "motion.easing.standard"
+    ]
+  }
+}

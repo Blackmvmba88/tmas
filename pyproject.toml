@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blackmamba-visual-index"
+version = "0.2.0"
+description = "Visual-system control map, semantic theme generator and dependency analyzer"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "BlackMamba RECORDS" }]
+license = { text = "Proprietary" }
+dependencies = []
+
+[project.scripts]
+visual-index = "visual_index.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["visual_index*"]
