@@ -39,7 +39,8 @@ PRIORITY_NAMES = {
     "next.config.js", "next.config.mjs", "nuxt.config.ts", "svelte.config.js",
     "astro.config.mjs", "styles.css", "globals.css", "global.css", "app.css",
     "index.css", "colors.xml", "themes.xml", "styles.xml", "Info.plist",
-    "Package.swift", "pubspec.yaml",
+    "Package.swift", "pubspec.yaml", "playwright.config.ts", "playwright.config.js",
+    "cypress.config.ts", "cypress.config.js", ".storybook/main.ts", ".storybook/main.js",
 }
 
 FRAMEWORK_PATTERNS = {
@@ -63,6 +64,9 @@ FRAMEWORK_PATTERNS = {
     "SwiftUI": (r"\bimport\s+SwiftUI\b", r"\bColor\("),
     "Jetpack Compose": (r"androidx\.compose", r"@Composable"),
     "Flutter": (r"package:flutter/", r"\bMaterialApp\s*\("),
+    "Storybook": (r"@storybook/", r"\.stories\.[jt]sx?"),
+    "Playwright": (r"@playwright/test", r"playwright\.config"),
+    "Cypress": (r"\bcypress\b", r"cypress\.config"),
 }
 
 COLOR_PATTERNS = {
@@ -74,4 +78,6 @@ CSS_VAR_DEF = re.compile(r"(--[\w-]+)\s*:\s*([^;}{]+)")
 CSS_VAR_USE = re.compile(r"var\(\s*(--[\w-]+)")
 KEYFRAMES = re.compile(r"@(?:-webkit-)?keyframes\s+([\w-]+)")
 MOTION_DECLARATION = re.compile(r"\b(?:transition|animation)(?:-[\w-]+)?\s*:", re.IGNORECASE)
-IMPORT_RE = re.compile(r"(?:import\s+(?:[^'\"]+\s+from\s+)?|require\s*\()\s*['\"]([^'\"]+)['\"]")
+IMPORT_RE = re.compile(r"(?:import\s+(?:[^'\"]+\s+from\s+)?|export\s+[^'\"]*\s+from\s+|require\s*\(|import\s*\()\s*['\"]([^'\"]+)['\"]")
+STYLE_IMPORT_RE = re.compile(r"@(?:use|forward|import)\s+(?:url\()?\s*['\"]([^'\"]+)['\"]", re.IGNORECASE)
+URL_REFERENCE_RE = re.compile(r"url\(\s*['\"]?([^)'\"]+)['\"]?\s*\)", re.IGNORECASE)
