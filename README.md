@@ -4,7 +4,7 @@ A macOS-friendly visual engineering control system that maps a repository before
 
 Source files remain untouched. Every proposal, graph, theme, baseline manifest, pixel comparison and test template is written into `.visual-index/` for review.
 
-## Current engine — v0.6.1
+## Current engine — v0.6.2
 
 - Inventories CSS/Sass/Less, components, layouts, assets, fonts and design files.
 - Detects frameworks, visual libraries, Storybook, Playwright and Cypress signals.
@@ -16,14 +16,11 @@ Source files remain untouched. Every proposal, graph, theme, baseline manifest, 
 - Generates a Playwright screenshot matrix across themes and viewports.
 - Calculates the transitive visual blast radius of changed files.
 - Inventories screenshot baselines with SHA-256, byte size and PNG dimensions.
-- Compares baseline manifests and reports added, removed, changed and unchanged images.
-- Compares real image pixels with configurable channel and changed-ratio thresholds.
-- Generates normalized difference images and red heatmap overlays.
-- Includes pixel failures in CI risk calculation and PR evidence.
+- Compares real image pixels and creates normalized diff and heatmap evidence.
 - Validates Python 3.10, 3.11, 3.12 and 3.13.
 - Publishes the full self-scan as a workflow artifact.
 - Creates or updates one persistent visual report comment on every pull request.
-- Produces a safe Playwright runner that never installs dependencies silently.
+- Produces safe preview and Playwright runners that never install dependencies silently.
 
 ## Install on Mac
 
@@ -33,7 +30,7 @@ cd tmas
 python3 -m pip install --user -e .
 ```
 
-Scan a project and open its dashboard:
+Scan a project:
 
 ```bash
 visual-index /path/to/project --open
@@ -49,7 +46,7 @@ panel:    Mic | elastic waveform | send
 helper:   Hold to record
 ```
 
-State colors are intentionally separated:
+State colors:
 
 ```text
 idle action       violet
@@ -59,7 +56,7 @@ panel structure   amber
 waveform          white
 ```
 
-The generated component uses a wide, low, near-black glass panel with a continuous amber perimeter glow, rounded corners, left microphone control, elastic center waveform and right circular send action.
+The panel is intentionally wide and low. Its border has a thin amber core and a restrained halo along straight sections. Additional bloom is localized to the four rounded corners so the line does not become uniformly thick.
 
 Every scan produces:
 
@@ -67,16 +64,34 @@ Every scan produces:
 .visual-index/
 ├── blackmamba-neon-glass.json
 ├── blackmamba-neon-glass.css
-└── blackmamba-neon-glass-demo.html
+├── blackmamba-neon-glass-corner-bloom.css
+├── blackmamba-neon-glass-demo.html
+└── serve-neon-glass-demo.sh
 ```
 
-Open the interactive preview on macOS:
+### Open the preview safely
+
+Do not open the HTML through a blocked popup or `file://` navigation. Serve it through loopback HTTP:
 
 ```bash
-open .visual-index/blackmamba-neon-glass-demo.html
+.visual-index/serve-neon-glass-demo.sh
 ```
 
-The demo cycles through `idle`, `recording` and `ready-to-send`. Reduced-motion mode disables waveform animation.
+The launcher:
+
+- Binds only to `127.0.0.1`.
+- Uses Python's built-in HTTP server.
+- Opens `http://127.0.0.1:8765/blackmamba-neon-glass-demo.html` on macOS.
+- Does not access the network, microphone or external services.
+- Stops when you press `Ctrl+C`.
+
+Use a different local port when needed:
+
+```bash
+BM_PREVIEW_PORT=8877 .visual-index/serve-neon-glass-demo.sh
+```
+
+The demo cycles through `idle`, `recording` and `ready-to-send`. Reduced-motion mode disables waveform animation and glow transitions.
 
 ## Changed-file impact
 
@@ -118,17 +133,6 @@ Defaults:
 - A pixel counts as changed when any RGB channel differs by more than `16`.
 - A screenshot passes when no more than `1%` of its pixels changed.
 - Dimension changes always require review.
-
-The pixel engine generates:
-
-```text
-.visual-index/
-├── pixel-diff.json
-├── PIXEL_DIFF.md
-└── pixel-diffs/
-    ├── route--theme--viewport.diff.png
-    └── route--theme--viewport.heatmap.png
-```
 
 ## Pull-request reporting
 
@@ -180,7 +184,9 @@ The runner uses `npx --no-install`; it stops with explicit setup instructions wh
 ├── pixel-diffs/
 ├── blackmamba-neon-glass.json
 ├── blackmamba-neon-glass.css
+├── blackmamba-neon-glass-corner-bloom.css
 ├── blackmamba-neon-glass-demo.html
+├── serve-neon-glass-demo.sh
 ├── PR_VISUAL_SUMMARY.md
 └── run-visual-baseline.sh
 ```
@@ -198,11 +204,12 @@ visual-index . --check
 1. Source projects are read-only.
 2. Generated themes and presets never overwrite application code.
 3. Dynamic routes remain disabled until concrete examples are supplied.
-4. Baseline comparison uses hashes and metadata; it does not mutate screenshots.
+4. Baseline comparison does not mutate screenshots.
 5. Pixel artifacts are written only under the selected report output directory.
 6. CI repository content permission is read-only; write permission is limited to issue and pull-request reporting.
-7. The generated runner refuses implicit package installation.
-8. Reduced-motion behavior is built into every generated theme.
+7. Generated runners refuse implicit dependency installation.
+8. The preview server binds only to loopback.
+9. Reduced-motion behavior is built into every generated theme.
 
 ## Development
 
