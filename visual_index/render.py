@@ -5,16 +5,18 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .change_impact import build_change_impact, render_change_impact_markdown
 from .graph import build_dependency_graph, render_dot
 from .planner import build_change_plan, render_migration_plan
-from .routes import (
-    discover_visual_targets,
-    render_playwright_config,
-    render_playwright_spec,
-    render_visual_regression_markdown,
-)
 from .semantic import build_semantic_system, render_theme_css
+from .routes import (
+    discover_visual_targets, render_baseline_runner, render_playwright_config,
+    render_playwright_spec, render_visual_regression_markdown,
+)
+from .baseline import (
+    compare_baselines, inventory_baseline, render_baseline_markdown,
+    render_pr_visual_summary,
+)
+from .change_impact import build_change_impact, render_change_impact_markdown
 
 
 def _escape(value: Any) -> str:
@@ -37,7 +39,9 @@ def render_markdown(data: dict[str, Any]) -> str:
         f"| Internal dependency edges | {derived['dependency_graph']['summary']['internal_edges']} |",
         f"| Visual migration risk | {derived['change_plan']['risk']['level']} ({derived['change_plan']['risk']['score']}/100) |",
         f"| Discovered routes | {len(derived['visual_regression']['routes'])} |",
-        f"| Planned captures | {derived['visual_regression']['capture_count']} |", "",
+        f"| Planned captures | {derived['visual_regression']['capture_count']} |",
+        f"| Baseline screenshots | {derived['baseline_manifest']['summary']['files']} |",
+        f"| Baseline diff | {derived['baseline_diff']['risk']['level']} ({derived['baseline_diff']['risk']['score']}/100) |", "",
         "## Detected stack", "",
     ]
     if summary["frameworks"]:
@@ -89,7 +93,10 @@ def render_markdown(data: dict[str, Any]) -> str:
         "- `dependency-graph.json` and `dependency-graph.dot` — impact graph",
         "- `MIGRATION_PLAN.md` — ordered rollout plan",
         "- `visual-regression-plan.json` and Playwright templates — screenshot baseline matrix",
-        "- `change-impact.json` and `CHANGE_IMPACT.md` — changed-file blast radius", "",
+        "- `change-impact.json` and `CHANGE_IMPACT.md` — changed-file blast radius",
+        "- `baseline-manifest.json`, `baseline-diff.json` and `BASELINE.md` — screenshot inventory",
+        "- `run-visual-baseline.sh` — safe Playwright runner (never installs packages)",
+        "- `PR_VISUAL_SUMMARY.md` — compact pull-request evidence", "",
     ]
     return "\n".join(lines)
 
@@ -98,15 +105,14 @@ def render_html(data: dict[str, Any]) -> str:
     summary = data["summary"]
     derived = data["derived"]
     metrics = {
-        "Files": data["meta"]["file_count"],
-        "Color usages": summary["color_usage_total"],
-        "Unique colors": summary["unique_color_literals"],
-        "CSS variables": summary["css_variables_defined"],
-        "Keyframes": summary["keyframes"],
-        "Graph edges": derived["dependency_graph"]["summary"]["internal_edges"],
+        "Files": data["meta"]["file_count"], "Color usages": summary["color_usage_total"],
+        "Unique colors": summary["unique_color_literals"], "CSS variables": summary["css_variables_defined"],
+        "Keyframes": summary["keyframes"], "Graph edges": derived["dependency_graph"]["summary"]["internal_edges"],
         "Risk": f"{derived['change_plan']['risk']['score']}/100",
         "Routes": len(derived["visual_regression"]["routes"]),
         "Captures": derived["visual_regression"]["capture_count"],
+        "Baselines": derived["baseline_manifest"]["summary"]["files"],
+        "Baseline diff": derived["baseline_diff"]["summary"]["changed"],
     }
     metric_cards = "".join(
         f'<div class="metric"><span>{html.escape(label)}</span><strong>{html.escape(str(value))}</strong></div>'
@@ -134,18 +140,9 @@ def render_html(data: dict[str, Any]) -> str:
             )
     theme_cards = []
     for name, tokens in derived["semantic_system"]["themes"].items():
-        swatches = "".join(
-            f'<i title="{html.escape(key)}" style="background:{html.escape(value)}"></i>'
-            for key, value in tokens.items() if value.startswith("#")
-        )
-        audit = next(
-            item for item in derived["semantic_system"]["accessibility"]["themes"]
-            if item["theme"] == name
-        )
-        theme_cards.append(
-            f'<article class="theme"><b>{html.escape(name)}</b><div>{swatches}</div>'
-            f'<p>{audit["passed"]} passed · {audit["failed"]} failed</p></article>'
-        )
+        swatches = "".join(f'<i title="{html.escape(key)}" style="background:{html.escape(value)}"></i>' for key, value in tokens.items() if value.startswith("#"))
+        audit = next(item for item in derived["semantic_system"]["accessibility"]["themes"] if item["theme"] == name)
+        theme_cards.append(f'<article class="theme"><b>{html.escape(name)}</b><div>{swatches}</div><p>{audit["passed"]} passed · {audit["failed"]} failed</p></article>')
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Visual System Index</title>
 <style>:root{{color-scheme:dark;--bg:#090b11;--panel:#131725;--text:#f5f7ff;--muted:#9da8c1;--line:#29314a;--accent:#2fe0b6}}
@@ -161,18 +158,28 @@ main{{width:min(1400px,94vw);margin:auto;padding:52px 0 100px}}h1{{font-size:cla
 </main></body></html>"""
 
 
-def write_reports(data: dict[str, Any], output: Path, changed_paths: list[str] | None = None) -> None:
+def write_reports(
+    data: dict[str, Any],
+    output: Path,
+    changed_paths: list[str] | None = None,
+    baseline_manifest: dict[str, Any] | None = None,
+    baseline_diff: dict[str, Any] | None = None,
+) -> None:
     semantic = build_semantic_system(data)
     graph = build_dependency_graph(data)
     plan = build_change_plan(data, semantic, graph)
     visual_regression = discover_visual_targets(data, semantic)
     change_impact = build_change_impact(data, graph, changed_paths or [])
+    manifest = baseline_manifest or inventory_baseline(None)
+    diff = baseline_diff or compare_baselines(None, manifest)
     data["derived"] = {
         "semantic_system": semantic,
         "dependency_graph": graph,
         "change_plan": plan,
         "visual_regression": visual_regression,
         "change_impact": change_impact,
+        "baseline_manifest": manifest,
+        "baseline_diff": diff,
     }
 
     output.mkdir(parents=True, exist_ok=True)
@@ -191,3 +198,10 @@ def write_reports(data: dict[str, Any], output: Path, changed_paths: list[str] |
     (output / "VISUAL_REGRESSION.md").write_text(render_visual_regression_markdown(visual_regression), encoding="utf-8")
     (output / "change-impact.json").write_text(json.dumps(change_impact, indent=2, ensure_ascii=False), encoding="utf-8")
     (output / "CHANGE_IMPACT.md").write_text(render_change_impact_markdown(change_impact), encoding="utf-8")
+    (output / "baseline-manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    (output / "baseline-diff.json").write_text(json.dumps(diff, indent=2, ensure_ascii=False), encoding="utf-8")
+    (output / "BASELINE.md").write_text(render_baseline_markdown(manifest, diff), encoding="utf-8")
+    (output / "PR_VISUAL_SUMMARY.md").write_text(render_pr_visual_summary(data), encoding="utf-8")
+    runner = output / "run-visual-baseline.sh"
+    runner.write_text(render_baseline_runner(visual_regression), encoding="utf-8")
+    runner.chmod(0o755)
