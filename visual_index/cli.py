@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import __version__
 from .catalog import DEFAULT_EXCLUDES
+from .change_impact import git_changed_paths
 from .render import write_reports
 from .scanner import scan_project
 
@@ -21,6 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--exclude", action="append", default=[], help="Extra directory name to exclude")
     parser.add_argument("--open", action="store_true", help="Open HTML dashboard on macOS")
     parser.add_argument("--check", action="store_true", help="Exit non-zero when critical visual risks are detected")
+    parser.add_argument("--git-base", help="Analyze changed-file impact against a Git ref, for example origin/main")
+    parser.add_argument("--changed", action="append", default=[], help="Explicit changed path; repeatable")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
 
@@ -50,12 +53,26 @@ def main() -> int:
         "file_count": len(data["files"]),
         "excluded_directories": sorted(excludes),
     }
-    write_reports(data, output)
-    risk = data["derived"]["change_plan"]["risk"]
+
+    changed_paths = list(args.changed)
+    if args.git_base:
+        discovered, git_error = git_changed_paths(root, args.git_base)
+        changed_paths.extend(discovered)
+        if git_error:
+            data["diagnostics"]["git_diff_error"] = git_error
+            print(f"[visual-index] git diff warning: {git_error}", file=sys.stderr)
+    changed_paths = sorted(set(changed_paths))
+
+    write_reports(data, output, changed_paths=changed_paths)
+    migration_risk = data["derived"]["change_plan"]["risk"]
+    change_risk = data["derived"]["change_impact"]["risk"]
+    risk = migration_risk if migration_risk["score"] >= change_risk["score"] else change_risk
     print(f"[visual-index] indexed {len(data['files'])} files · risk {risk['level']} ({risk['score']}/100)")
     for filename in (
         "visual-index.html", "VISUAL_INDEX.md", "visual-index.json", "semantic-tokens.json",
         "themes.css", "accessibility-audit.json", "dependency-graph.json", "MIGRATION_PLAN.md",
+        "visual-regression-plan.json", "visual-regression.spec.ts", "playwright.visual.config.ts",
+        "VISUAL_REGRESSION.md", "change-impact.json", "CHANGE_IMPACT.md",
     ):
         print(f"[visual-index] generated: {output / filename}")
     if args.open:
@@ -64,6 +81,6 @@ def main() -> int:
         else:
             print("[visual-index] --open is currently available on macOS", file=sys.stderr)
     if args.check and risk["level"] == "critical":
-        print("[visual-index] critical visual migration risk detected", file=sys.stderr)
+        print("[visual-index] critical visual risk detected", file=sys.stderr)
         return 1
     return 0
