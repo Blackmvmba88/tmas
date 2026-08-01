@@ -133,7 +133,7 @@ The runner uses `npx --no-install`; it stops with explicit setup instructions wh
 visual-index . --check
 ```
 
-`--check` exits non-zero when repository migration risk, changed-file impact, baseline-diff risk or pixel-diff risk reaches `critical`.
+`--check` exits non-zero when a configured screenshot breaches its pixel threshold, changes dimensions, cannot be read, or when any aggregate visual risk reaches `critical`.
 
 GitHub Actions validates Python 3.10, 3.11, 3.12 and 3.13. The Python 3.12 job publishes the complete self-scan as a downloadable workflow artifact.
 
