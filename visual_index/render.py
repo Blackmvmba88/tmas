@@ -5,8 +5,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .change_impact import build_change_impact, render_change_impact_markdown
 from .graph import build_dependency_graph, render_dot
 from .planner import build_change_plan, render_migration_plan
+from .routes import (
+    discover_visual_targets,
+    render_playwright_config,
+    render_playwright_spec,
+    render_visual_regression_markdown,
+)
 from .semantic import build_semantic_system, render_theme_css
 
 
@@ -28,7 +35,9 @@ def render_markdown(data: dict[str, Any]) -> str:
         f"| Keyframes | {summary['keyframes']} |",
         f"| Motion declarations | {summary['motion_declarations']} |",
         f"| Internal dependency edges | {derived['dependency_graph']['summary']['internal_edges']} |",
-        f"| Visual migration risk | {derived['change_plan']['risk']['level']} ({derived['change_plan']['risk']['score']}/100) |", "",
+        f"| Visual migration risk | {derived['change_plan']['risk']['level']} ({derived['change_plan']['risk']['score']}/100) |",
+        f"| Discovered routes | {len(derived['visual_regression']['routes'])} |",
+        f"| Planned captures | {derived['visual_regression']['capture_count']} |", "",
         "## Detected stack", "",
     ]
     if summary["frameworks"]:
@@ -78,7 +87,9 @@ def render_markdown(data: dict[str, Any]) -> str:
         "- `themes.css` — light, dark, BlackMamba and high-contrast CSS variables",
         "- `accessibility-audit.json` — contrast evidence",
         "- `dependency-graph.json` and `dependency-graph.dot` — impact graph",
-        "- `MIGRATION_PLAN.md` — ordered rollout plan", "",
+        "- `MIGRATION_PLAN.md` — ordered rollout plan",
+        "- `visual-regression-plan.json` and Playwright templates — screenshot baseline matrix",
+        "- `change-impact.json` and `CHANGE_IMPACT.md` — changed-file blast radius", "",
     ]
     return "\n".join(lines)
 
@@ -94,6 +105,8 @@ def render_html(data: dict[str, Any]) -> str:
         "Keyframes": summary["keyframes"],
         "Graph edges": derived["dependency_graph"]["summary"]["internal_edges"],
         "Risk": f"{derived['change_plan']['risk']['score']}/100",
+        "Routes": len(derived["visual_regression"]["routes"]),
+        "Captures": derived["visual_regression"]["capture_count"],
     }
     metric_cards = "".join(
         f'<div class="metric"><span>{html.escape(label)}</span><strong>{html.escape(str(value))}</strong></div>'
@@ -101,17 +114,14 @@ def render_html(data: dict[str, Any]) -> str:
     )
     recommendations = "".join(
         f'<article class="rec {html.escape(item["level"])}"><b>{html.escape(item["title"])}</b>'
-        f'<p>{html.escape(item["detail"])}</p></article>'
-        for item in data["recommendations"]
+        f'<p>{html.escape(item["detail"])}</p></article>' for item in data["recommendations"]
     ) or "<p>No immediate risks detected.</p>"
     priority_rows = "".join(
         f'<tr><td><code>{html.escape(item["path"])}</code></td><td>{html.escape(item["category"])}</td>'
-        f'<td>{html.escape(", ".join(item["roles"]))}</td></tr>'
-        for item in data["priority_files"][:300]
+        f'<td>{html.escape(", ".join(item["roles"]))}</td></tr>' for item in data["priority_files"][:300]
     ) or '<tr><td colspan="3">No priority files detected</td></tr>'
     hotspot_rows = "".join(
-        f'<tr><td><code>{html.escape(item["path"])}</code></td><td>{item["incoming"]}</td>'
-        f'<td>{item["outgoing"]}</td><td>{item["impact_score"]}</td></tr>'
+        f'<tr><td><code>{html.escape(item["path"])}</code></td><td>{item["incoming"]}</td><td>{item["outgoing"]}</td><td>{item["impact_score"]}</td></tr>'
         for item in derived["dependency_graph"]["hotspots"][:40]
     ) or '<tr><td colspan="4">No internal edges detected</td></tr>'
     color_rows: list[str] = []
@@ -151,31 +161,33 @@ main{{width:min(1400px,94vw);margin:auto;padding:52px 0 100px}}h1{{font-size:cla
 </main></body></html>"""
 
 
-def write_reports(data: dict[str, Any], output: Path) -> None:
+def write_reports(data: dict[str, Any], output: Path, changed_paths: list[str] | None = None) -> None:
     semantic = build_semantic_system(data)
     graph = build_dependency_graph(data)
     plan = build_change_plan(data, semantic, graph)
+    visual_regression = discover_visual_targets(data, semantic)
+    change_impact = build_change_impact(data, graph, changed_paths or [])
     data["derived"] = {
         "semantic_system": semantic,
         "dependency_graph": graph,
         "change_plan": plan,
+        "visual_regression": visual_regression,
+        "change_impact": change_impact,
     }
 
     output.mkdir(parents=True, exist_ok=True)
-    (output / "visual-index.json").write_text(
-        json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    (output / "visual-index.json").write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     (output / "VISUAL_INDEX.md").write_text(render_markdown(data), encoding="utf-8")
     (output / "visual-index.html").write_text(render_html(data), encoding="utf-8")
-    (output / "semantic-tokens.json").write_text(
-        json.dumps(semantic, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    (output / "semantic-tokens.json").write_text(json.dumps(semantic, indent=2, ensure_ascii=False), encoding="utf-8")
     (output / "themes.css").write_text(render_theme_css(semantic), encoding="utf-8")
-    (output / "accessibility-audit.json").write_text(
-        json.dumps(semantic["accessibility"], indent=2), encoding="utf-8"
-    )
-    (output / "dependency-graph.json").write_text(
-        json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    (output / "accessibility-audit.json").write_text(json.dumps(semantic["accessibility"], indent=2), encoding="utf-8")
+    (output / "dependency-graph.json").write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
     (output / "dependency-graph.dot").write_text(render_dot(graph), encoding="utf-8")
     (output / "MIGRATION_PLAN.md").write_text(render_migration_plan(plan), encoding="utf-8")
+    (output / "visual-regression-plan.json").write_text(json.dumps(visual_regression, indent=2, ensure_ascii=False), encoding="utf-8")
+    (output / "visual-regression.spec.ts").write_text(render_playwright_spec(visual_regression), encoding="utf-8")
+    (output / "playwright.visual.config.ts").write_text(render_playwright_config(visual_regression), encoding="utf-8")
+    (output / "VISUAL_REGRESSION.md").write_text(render_visual_regression_markdown(visual_regression), encoding="utf-8")
+    (output / "change-impact.json").write_text(json.dumps(change_impact, indent=2, ensure_ascii=False), encoding="utf-8")
+    (output / "CHANGE_IMPACT.md").write_text(render_change_impact_markdown(change_impact), encoding="utf-8")
