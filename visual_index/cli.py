@@ -12,6 +12,7 @@ from .baseline import compare_baselines, inventory_baseline, load_manifest
 from .catalog import DEFAULT_EXCLUDES
 from .change_impact import git_changed_paths
 from .corner_bloom import enhance_neon_glass_demo, render_corner_bloom_css
+from .local_preview import render_local_preview_runner
 from .pixel_diff import compare_pixel_baselines
 from .presets import build_neon_glass_preset, render_neon_glass_css, render_neon_glass_demo
 from .render import write_reports
@@ -74,6 +75,9 @@ def _write_neon_glass_artifacts(output: Path) -> None:
         demo,
         encoding="utf-8",
     )
+    preview_runner = output / "serve-neon-glass-demo.sh"
+    preview_runner.write_text(render_local_preview_runner(), encoding="utf-8")
+    preview_runner.chmod(0o755)
 
 
 def main() -> int:
@@ -175,6 +179,7 @@ def main() -> int:
         "pixel-diff.json", "PIXEL_DIFF.md", "PR_VISUAL_SUMMARY.md", "run-visual-baseline.sh",
         "blackmamba-neon-glass.json", "blackmamba-neon-glass.css",
         "blackmamba-neon-glass-corner-bloom.css", "blackmamba-neon-glass-demo.html",
+        "serve-neon-glass-demo.sh",
     ):
         print(f"[visual-index] generated: {output / filename}")
     if pixel_diff["enabled"]:
