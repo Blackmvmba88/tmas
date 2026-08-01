@@ -68,8 +68,9 @@ def render_corner_bloom_css() -> str:
 
 
 def enhance_neon_glass_demo(document: str) -> str:
-    """Inject the corner bloom layer into the generated standalone demo."""
-    marker = "  </style>"
-    if marker not in document:
+    """Inject the corner bloom layer before the first closing style tag."""
+    marker = "</style>"
+    index = document.lower().find(marker)
+    if index < 0:
         raise ValueError("Neon Glass demo is missing its closing style tag")
-    return document.replace(marker, f"\n{CORNER_BLOOM_CSS}\n{marker}", 1)
+    return document[:index] + f"\n{CORNER_BLOOM_CSS}\n" + document[index:]
