@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blackmamba-visual-index"
-version = "0.6.0"
-description = "Visual-system control map with pixel evidence and automated PR reporting"
+version = "0.6.1"
+description = "Visual-system control map with pixel evidence, PR reporting and Neon Glass preset"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "BlackMamba RECORDS" }]

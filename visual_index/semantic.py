@@ -3,6 +3,8 @@ from __future__ import annotations
 import colorsys
 from typing import Any
 
+from .presets import NEON_GLASS_THEME
+
 FALLBACK = {
     "canvas": "#090b11", "surface": "#151a2a", "surface-raised": "#202740",
     "text": "#f5f7ff", "text-muted": "#9da8c1", "border": "#29314a",
@@ -162,13 +164,17 @@ def build_semantic_system(data: dict[str, Any]) -> dict[str, Any]:
     themes = {
         name: _normalize_theme(tokens)
         for name, tokens in {
-            "light": light, "dark": dark, "blackmamba": blackmamba, "high-contrast": high_contrast,
+            "light": light,
+            "dark": dark,
+            "blackmamba": blackmamba,
+            "blackmamba-neon-glass": dict(NEON_GLASS_THEME),
+            "high-contrast": high_contrast,
         }.items()
     }
     audits = [_theme_audit(name, tokens) for name, tokens in themes.items()]
     return {
         "schema_version": 1,
-        "source": "inferred from scanned literals; generated files never modify source code",
+        "source": "inferred from scanned literals plus reviewable BlackMamba presets; generated files never modify source code",
         "observed_palette": [
             {**entry, "luminance": round(relative_luminance(entry["value"]), 4), "saturation": round(_saturation(entry["value"]), 4)}
             for entry in observed
