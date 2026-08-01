@@ -74,8 +74,14 @@ def compare_baselines(previous: dict[str, Any] | None, current: dict[str, Any]) 
     new = {item["path"]: item for item in current.get("files", [])}
     added = sorted(set(new) - set(old))
     removed = sorted(set(old) - set(new))
-    changed = sorted(path for path in set(old) & set(new) if old[path].get("sha256") != new[path].get("sha256"))
-    unchanged = sorted(path for path in set(old) & set(new) if old[path].get("sha256") == new[path].get("sha256"))
+    changed = sorted(
+        path for path in set(old) & set(new)
+        if old[path].get("sha256") != new[path].get("sha256")
+    )
+    unchanged = sorted(
+        path for path in set(old) & set(new)
+        if old[path].get("sha256") == new[path].get("sha256")
+    )
     score = min(100, len(removed) * 15 + len(changed) * 5 + len(added) * 2)
     level = "critical" if score >= 75 else "high" if score >= 50 else "medium" if score >= 25 else "low"
     return {
@@ -90,7 +96,10 @@ def compare_baselines(previous: dict[str, Any] | None, current: dict[str, Any]) 
         "risk": {"score": score, "level": level},
         "added": [{"path": path, "current": new[path]} for path in added],
         "removed": [{"path": path, "previous": old[path]} for path in removed],
-        "changed": [{"path": path, "previous": old[path], "current": new[path]} for path in changed],
+        "changed": [
+            {"path": path, "previous": old[path], "current": new[path]}
+            for path in changed
+        ],
         "unchanged": unchanged,
     }
 
@@ -124,15 +133,26 @@ def render_pr_visual_summary(data: dict[str, Any]) -> str:
     migration = derived["change_plan"]["risk"]
     change = derived["change_impact"]["risk"]
     baseline = derived["baseline_diff"]
+    pixel = derived["pixel_diff"]
     regression = derived["visual_regression"]
+    pixel_failures = (
+        pixel["summary"]["failed"]
+        + pixel["summary"]["dimension_mismatches"]
+        + pixel["summary"]["errors"]
+    )
     lines = [
         "# PR Visual Summary", "",
         "| Signal | Result |", "|---|---|",
         f"| Migration risk | {migration['level']} ({migration['score']}/100) |",
         f"| Changed-file risk | {change['level']} ({change['score']}/100) |",
         f"| Baseline diff risk | {baseline['risk']['level']} ({baseline['risk']['score']}/100) |",
+        f"| Pixel diff risk | {pixel['risk']['level']} ({pixel['risk']['score']}/100) |",
         f"| Routes discovered | {len(regression['routes'])} |",
         f"| Planned captures | {regression['capture_count']} |",
+        f"| Pixel comparisons | {pixel['summary']['compared']} |",
+        f"| Pixel comparisons passed | {pixel['summary']['passed'] + pixel['summary']['unchanged']} |",
+        f"| Pixel comparisons requiring review | {pixel_failures} |",
+        f"| Maximum changed-pixel ratio | {pixel['summary']['maximum_changed_ratio']:.6f} |",
         f"| Changed screenshots | {baseline['summary']['changed']} |",
         f"| Added screenshots | {baseline['summary']['added']} |",
         f"| Removed screenshots | {baseline['summary']['removed']} |", "",
@@ -140,4 +160,14 @@ def render_pr_visual_summary(data: dict[str, Any]) -> str:
     ]
     paths = derived["change_impact"]["changed_paths"]
     lines.extend(f"- `{path}`" for path in paths) if paths else lines.append("- None supplied")
+
+    failed_items = [item for item in pixel["results"] if not item.get("passes", False)]
+    if failed_items:
+        lines += ["", "## Pixel differences requiring review", ""]
+        for item in failed_items:
+            evidence = item.get("heatmap_image") or item.get("diff_image") or "no artifact"
+            lines.append(
+                f"- `{item['path']}` — {item['status']} · "
+                f"ratio `{item.get('changed_ratio', 'n/a')}` · `{evidence}`"
+            )
     return "\n".join(lines) + "\n"
