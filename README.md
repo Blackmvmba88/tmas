@@ -4,7 +4,7 @@ A macOS-friendly visual engineering control system that maps a repository before
 
 Source files remain untouched. Every proposal, graph, theme, baseline manifest, pixel comparison and test template is written into `.visual-index/` for review.
 
-## Current engine — v0.5
+## Current engine — v0.6
 
 - Inventories CSS/Sass/Less, components, layouts, assets, fonts and design files.
 - Detects frameworks, visual libraries, Storybook, Playwright and Cypress signals.
@@ -20,6 +20,9 @@ Source files remain untouched. Every proposal, graph, theme, baseline manifest, 
 - Compares real image pixels with configurable channel and changed-ratio thresholds.
 - Generates normalized difference images and red heatmap overlays.
 - Includes pixel failures in CI risk calculation and PR evidence.
+- Validates Python 3.10, 3.11, 3.12 and 3.13.
+- Publishes the full self-scan as a workflow artifact.
+- Creates or updates one persistent visual report comment on every pull request.
 - Produces a safe Playwright runner that never installs dependencies silently.
 
 ## Install on Mac
@@ -88,6 +91,19 @@ The pixel engine generates:
     └── route--theme--viewport.heatmap.png
 ```
 
+## Pull-request reporting
+
+On every pull request, GitHub Actions:
+
+1. Checks out full git history.
+2. Runs the visual scanner against the PR base commit.
+3. Executes the Python 3.10–3.13 validation matrix.
+4. Adds `PR_VISUAL_SUMMARY.md` to the Actions Job Summary.
+5. Uploads the complete `.visual-index` report as `visual-index-self-scan`.
+6. Creates or updates one bot comment containing migration, changed-file, baseline and pixel risk.
+
+The comment uses a hidden marker, so later pushes update the existing report instead of creating duplicates.
+
 ## Run generated screenshots
 
 Start the target application first, then execute:
@@ -135,8 +151,6 @@ visual-index . --check
 
 `--check` exits non-zero when a configured screenshot breaches its pixel threshold, changes dimensions, cannot be read, or when any aggregate visual risk reaches `critical`.
 
-GitHub Actions validates Python 3.10, 3.11, 3.12 and 3.13. The Python 3.12 job publishes the complete self-scan as a downloadable workflow artifact.
-
 ## Safety contract
 
 1. Source projects are read-only.
@@ -144,8 +158,9 @@ GitHub Actions validates Python 3.10, 3.11, 3.12 and 3.13. The Python 3.12 job p
 3. Dynamic routes remain disabled until concrete examples are supplied.
 4. Baseline comparison uses hashes and metadata; it does not mutate screenshots.
 5. Pixel artifacts are written only under the selected report output directory.
-6. The generated runner refuses implicit package installation.
-7. Reduced-motion behavior is built into every generated theme.
+6. CI repository content permission is read-only; write permission is limited to issue and pull-request reporting.
+7. The generated runner refuses implicit package installation.
+8. Reduced-motion behavior is built into every generated theme.
 
 ## Development
 
@@ -158,7 +173,6 @@ python3 -m visual_index . --output /tmp/tmas-self-scan --check
 
 ## Next layer
 
-- GitHub PR comments generated from `PR_VISUAL_SUMMARY.md`
 - CI baseline artifact retrieval and cross-run comparison
 - Controlled token adoption with preview/apply/undo
 - Figma token export/import adapters
