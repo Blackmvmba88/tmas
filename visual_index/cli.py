@@ -11,6 +11,7 @@ from . import __version__
 from .baseline import compare_baselines, inventory_baseline, load_manifest
 from .catalog import DEFAULT_EXCLUDES
 from .change_impact import git_changed_paths
+from .corner_bloom import enhance_neon_glass_demo, render_corner_bloom_css
 from .pixel_diff import compare_pixel_baselines
 from .presets import build_neon_glass_preset, render_neon_glass_css, render_neon_glass_demo
 from .render import write_reports
@@ -56,6 +57,7 @@ def _resolve_from_root(root: Path, value: str | None) -> Path | None:
 
 def _write_neon_glass_artifacts(output: Path) -> None:
     preset = build_neon_glass_preset()
+    demo = enhance_neon_glass_demo(render_neon_glass_demo(preset))
     (output / "blackmamba-neon-glass.json").write_text(
         json.dumps(preset, indent=2, ensure_ascii=False),
         encoding="utf-8",
@@ -64,8 +66,12 @@ def _write_neon_glass_artifacts(output: Path) -> None:
         render_neon_glass_css(preset),
         encoding="utf-8",
     )
+    (output / "blackmamba-neon-glass-corner-bloom.css").write_text(
+        render_corner_bloom_css(),
+        encoding="utf-8",
+    )
     (output / "blackmamba-neon-glass-demo.html").write_text(
-        render_neon_glass_demo(preset),
+        demo,
         encoding="utf-8",
     )
 
@@ -168,7 +174,7 @@ def main() -> int:
         "baseline-manifest.json", "baseline-diff.json", "BASELINE.md",
         "pixel-diff.json", "PIXEL_DIFF.md", "PR_VISUAL_SUMMARY.md", "run-visual-baseline.sh",
         "blackmamba-neon-glass.json", "blackmamba-neon-glass.css",
-        "blackmamba-neon-glass-demo.html",
+        "blackmamba-neon-glass-corner-bloom.css", "blackmamba-neon-glass-demo.html",
     ):
         print(f"[visual-index] generated: {output / filename}")
     if pixel_diff["enabled"]:
