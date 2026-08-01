@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -11,6 +12,7 @@ from .baseline import compare_baselines, inventory_baseline, load_manifest
 from .catalog import DEFAULT_EXCLUDES
 from .change_impact import git_changed_paths
 from .pixel_diff import compare_pixel_baselines
+from .presets import build_neon_glass_preset, render_neon_glass_css, render_neon_glass_demo
 from .render import write_reports
 from .scanner import scan_project
 
@@ -50,6 +52,22 @@ def _resolve_from_root(root: Path, value: str | None) -> Path | None:
         return None
     path = Path(value).expanduser()
     return path if path.is_absolute() else root / path
+
+
+def _write_neon_glass_artifacts(output: Path) -> None:
+    preset = build_neon_glass_preset()
+    (output / "blackmamba-neon-glass.json").write_text(
+        json.dumps(preset, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (output / "blackmamba-neon-glass.css").write_text(
+        render_neon_glass_css(preset),
+        encoding="utf-8",
+    )
+    (output / "blackmamba-neon-glass-demo.html").write_text(
+        render_neon_glass_demo(preset),
+        encoding="utf-8",
+    )
 
 
 def main() -> int:
@@ -127,6 +145,8 @@ def main() -> int:
         baseline_diff=baseline_diff,
         pixel_diff=pixel_diff,
     )
+    _write_neon_glass_artifacts(output)
+
     risks = (
         data["derived"]["change_plan"]["risk"],
         data["derived"]["change_impact"]["risk"],
@@ -147,6 +167,8 @@ def main() -> int:
         "VISUAL_REGRESSION.md", "change-impact.json", "CHANGE_IMPACT.md",
         "baseline-manifest.json", "baseline-diff.json", "BASELINE.md",
         "pixel-diff.json", "PIXEL_DIFF.md", "PR_VISUAL_SUMMARY.md", "run-visual-baseline.sh",
+        "blackmamba-neon-glass.json", "blackmamba-neon-glass.css",
+        "blackmamba-neon-glass-demo.html",
     ):
         print(f"[visual-index] generated: {output / filename}")
     if pixel_diff["enabled"]:
