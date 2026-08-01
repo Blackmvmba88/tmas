@@ -4,10 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from PIL import Image
+
 from visual_index.baseline import compare_baselines, inventory_baseline
 from visual_index.catalog import DEFAULT_EXCLUDES
 from visual_index.change_impact import build_change_impact
 from visual_index.graph import build_dependency_graph
+from visual_index.pixel_diff import compare_pixel_baselines
 from visual_index.render import write_reports
 from visual_index.routes import discover_visual_targets, render_baseline_runner
 from visual_index.scanner import scan_project
@@ -57,13 +60,14 @@ class VisualIndexSmokeTest(unittest.TestCase):
                 "visual-regression-plan.json", "visual-regression.spec.ts",
                 "playwright.visual.config.ts", "VISUAL_REGRESSION.md",
                 "change-impact.json", "CHANGE_IMPACT.md", "baseline-manifest.json",
-                "baseline-diff.json", "BASELINE.md", "PR_VISUAL_SUMMARY.md",
-                "run-visual-baseline.sh",
+                "baseline-diff.json", "BASELINE.md", "pixel-diff.json",
+                "PIXEL_DIFF.md", "PR_VISUAL_SUMMARY.md", "run-visual-baseline.sh",
             ):
                 self.assertTrue((output / filename).exists(), filename)
             self.assertTrue((output / "run-visual-baseline.sh").stat().st_mode & 0o111)
             parsed = json.loads((output / "visual-index.json").read_text())
             self.assertIn("baseline_diff", parsed["derived"])
+            self.assertIn("pixel_diff", parsed["derived"])
 
     def test_resolves_relative_dependency_graph(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -127,8 +131,49 @@ class VisualIndexSmokeTest(unittest.TestCase):
             diff = compare_baselines(old, new)
             self.assertEqual(old["files"][0]["width"], 1440)
             self.assertEqual(new["summary"]["files"], 2)
-            self.assertEqual(diff["summary"], {"added": 1, "removed": 1, "changed": 1, "unchanged": 0})
+            self.assertEqual(
+                diff["summary"],
+                {"added": 1, "removed": 1, "changed": 1, "unchanged": 0},
+            )
             self.assertGreater(diff["risk"]["score"], 0)
+
+    def test_compares_real_pixels_and_generates_heatmaps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old_dir = root / "old"
+            new_dir = root / "new"
+            artifacts = root / "report" / "pixel-diffs"
+            old_dir.mkdir()
+            new_dir.mkdir()
+
+            previous = Image.new("RGB", (10, 10), "white")
+            previous.save(old_dir / "home.png")
+            current = previous.copy()
+            current.putpixel((0, 0), (255, 0, 0))
+            current.putpixel((1, 0), (255, 0, 0))
+            current.save(new_dir / "home.png")
+
+            old_manifest = inventory_baseline(old_dir)
+            new_manifest = inventory_baseline(new_dir)
+            report = compare_pixel_baselines(
+                old_manifest,
+                new_manifest,
+                artifact_dir=artifacts,
+                previous_dir=old_dir,
+                current_dir=new_dir,
+                pixel_threshold=0,
+                max_diff_ratio=0.01,
+            )
+
+            self.assertTrue(report["enabled"])
+            self.assertEqual(report["summary"]["compared"], 1)
+            self.assertEqual(report["summary"]["failed"], 1)
+            self.assertEqual(report["summary"]["changed_pixels"], 2)
+            self.assertAlmostEqual(report["summary"]["maximum_changed_ratio"], 0.02)
+            result = report["results"][0]
+            self.assertEqual(result["bounding_box"], {"left": 0, "top": 0, "right": 2, "bottom": 1})
+            self.assertTrue((root / "report" / result["diff_image"]).exists())
+            self.assertTrue((root / "report" / result["heatmap_image"]).exists())
 
 
 if __name__ == "__main__":
