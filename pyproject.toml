@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blackmamba-visual-index"
-version = "0.3.0"
-description = "Visual-system control map, theme generator, route discovery and regression planner"
+version = "0.4.0"
+description = "Visual-system control map, baseline manager and visual regression planner"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "BlackMamba RECORDS" }]
