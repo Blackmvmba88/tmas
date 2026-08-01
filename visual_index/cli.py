@@ -13,13 +13,14 @@ from .scanner import scan_project
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build a read-only index of a project's visual system.")
+    parser = argparse.ArgumentParser(description="Build a visual-system control map for a software project.")
     parser.add_argument("project", nargs="?", default=".", help="Project directory")
     parser.add_argument("-o", "--output", default=".visual-index", help="Output directory")
     parser.add_argument("--max-file-mb", type=float, default=2.0, help="Largest text file to inspect")
     parser.add_argument("--include-hidden", action="store_true", help="Include hidden paths")
     parser.add_argument("--exclude", action="append", default=[], help="Extra directory name to exclude")
     parser.add_argument("--open", action="store_true", help="Open HTML dashboard on macOS")
+    parser.add_argument("--check", action="store_true", help="Exit non-zero when critical visual risks are detected")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
 
@@ -33,26 +34,36 @@ def main() -> int:
     output = Path(args.output).expanduser()
     if not output.is_absolute():
         output = root / output
+    excludes = DEFAULT_EXCLUDES | set(args.exclude)
     print(f"[visual-index] scanning: {root}")
     data = scan_project(
         root=root,
         max_file_bytes=max(1, int(args.max_file_mb * 1_048_576)),
-        excludes=DEFAULT_EXCLUDES | set(args.exclude),
+        excludes=excludes,
         include_hidden=args.include_hidden,
     )
     data["meta"] = {
-        "tool": "BlackMamba Visual Index", "version": __version__,
+        "tool": "BlackMamba Visual Index",
+        "version": __version__,
         "generated_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "project_root": str(root), "file_count": len(data["files"]),
-        "excluded_directories": sorted(DEFAULT_EXCLUDES | set(args.exclude)),
+        "project_root": str(root),
+        "file_count": len(data["files"]),
+        "excluded_directories": sorted(excludes),
     }
     write_reports(data, output)
-    print(f"[visual-index] indexed {len(data['files'])} files")
-    print(f"[visual-index] dashboard: {output / 'visual-index.html'}")
-    print(f"[visual-index] machine data: {output / 'visual-index.json'}")
+    risk = data["derived"]["change_plan"]["risk"]
+    print(f"[visual-index] indexed {len(data['files'])} files · risk {risk['level']} ({risk['score']}/100)")
+    for filename in (
+        "visual-index.html", "VISUAL_INDEX.md", "visual-index.json", "semantic-tokens.json",
+        "themes.css", "accessibility-audit.json", "dependency-graph.json", "MIGRATION_PLAN.md",
+    ):
+        print(f"[visual-index] generated: {output / filename}")
     if args.open:
         if sys.platform == "darwin":
             subprocess.run(["open", str(output / "visual-index.html")], check=False)
         else:
             print("[visual-index] --open is currently available on macOS", file=sys.stderr)
+    if args.check and risk["level"] == "critical":
+        print("[visual-index] critical visual migration risk detected", file=sys.stderr)
+        return 1
     return 0
