@@ -1,116 +1,122 @@
 # BlackMamba Visual Index
 
-A read-only macOS-friendly CLI that builds a complete **visual change impact index** before you modify themes, colors, typography, animation, assets, or UI components.
+A read-only visual change impact index for macOS and cross-platform software projects. It maps the files that control themes, colors, typography, motion, components and assets before anyone changes the interface.
 
-It does not rewrite project files. It only scans and creates reports.
+The scanner never rewrites the target project. It only produces reviewable reports.
 
 ## What it indexes
 
-- Global CSS, Sass, Less and Stylus files
+- CSS, Sass, Less and Stylus
 - Theme files and design-token candidates
-- CSS custom properties and their usage
-- Hex, RGB/RGBA and HSL/HSLA color literals
+- CSS custom-property definitions and usage
+- HEX, RGB/RGBA and HSL/HSLA colors
 - Keyframes, transitions and animation declarations
-- React, Vue, Svelte, Astro, SwiftUI, Compose and Flutter UI files
-- Tailwind, MUI, Chakra, styled-components, Emotion and Ant Design signals
-- Framer Motion, GSAP, Lottie, Rive, Three.js, Anime.js and React Spring
+- React, Next.js, Vue, Nuxt, Svelte, Astro, SwiftUI, Compose and Flutter
+- Tailwind, MUI, Chakra, Ant Design, styled-components and Emotion
+- Framer Motion, GSAP, Lottie, Rive and Three.js
+- Components, layouts, screens, views and entry files
 - Images, icons, fonts, videos and editable design assets
 - Byte-identical duplicate assets
-- Priority entry files, layouts, screens and theme scopes
-- Basic import relationships for machine processing
+- Basic import relationships for later automation
 
-## Fastest start on Mac
+## Install on Mac
 
 ```bash
-unzip blackmamba-visual-index.zip
-cd blackmamba-visual-index
+git clone https://github.com/Blackmvmba88/tmas.git
+cd tmas
 chmod +x install.sh
 ./install.sh
 source ~/.zshrc
 ```
 
-Then enter any project:
+Scan any project and open the dashboard:
 
 ```bash
-cd /path/to/your/project
-visual-index . --open
+visual-index /path/to/project --open
 ```
 
-The browser opens:
+You can also run it without installation:
 
-```text
-.visual-index/visual-index.html
+```bash
+python3 -m visual_index /path/to/project --open
 ```
 
-The same scan also creates:
+## Generated reports
+
+Every scan creates an isolated directory inside the target project:
 
 ```text
 .visual-index/
-├── VISUAL_INDEX.md       # Human review
+├── VISUAL_INDEX.md       # Human-readable architecture map
 ├── visual-index.html     # Visual dashboard
-└── visual-index.json     # Automation / agent input
-```
-
-## Run without installing
-
-```bash
-python3 visual_indexer.py /path/to/project --open
+└── visual-index.json     # Machine-readable automation input
 ```
 
 ## Useful commands
 
 ```bash
-# Scan current project
+# Scan the current directory
 visual-index .
 
-# Open dashboard after scan
+# Open the dashboard automatically on macOS
 visual-index . --open
 
-# Put report in another folder
+# Write reports elsewhere
 visual-index . --output reports/visual-system
 
 # Inspect text files up to 8 MB
 visual-index . --max-file-mb 8
 
-# Exclude an extra generated directory
+# Exclude an additional generated directory
 visual-index . --exclude generated
 
-# Include hidden project folders
+# Include hidden files and directories
 visual-index . --include-hidden
 ```
 
-## Recommended workflow before visual changes
+## Architecture
 
 ```text
-1. Scan
-2. Review priority files
-3. Identify semantic tokens
-4. Build theme contract
-5. Change tokens first
-6. Update exceptional components
-7. Add motion policy and reduced-motion handling
-8. Capture screenshots
-9. Run visual regression
-10. Merge
+visual_index/
+├── catalog.py    # Framework, extension and visual-pattern catalog
+├── scanner.py    # Read-only filesystem and source scanner
+├── render.py     # Markdown, HTML and JSON report generation
+├── cli.py        # Command-line interface
+└── __main__.py   # python -m visual_index entrypoint
 ```
 
-## Suggested repository integration
+## Safe visual-change workflow
 
-Add generated output to `.gitignore` when it is only local:
-
-```gitignore
-.visual-index/
+```text
+1. Scan the repository
+2. Review priority visual files
+3. Identify raw values and existing tokens
+4. Define a semantic theme contract
+5. Change tokens before individual components
+6. Handle exceptional surfaces explicitly
+7. Add reduced-motion behavior
+8. Capture reference screenshots
+9. Run visual regression checks
+10. Merge only after review
 ```
 
-Or commit `VISUAL_INDEX.md` when you want the repository to maintain a visual architecture map.
+## Validation
 
-## Next layer
+```bash
+python3 -m compileall -q visual_index
+python3 -m unittest discover -s tests -v
+```
 
-The JSON output is intentionally structured so a second tool can:
+GitHub Actions runs both checks on pushes and pull requests.
 
-- Generate a central token file
-- Produce light/dark/high-contrast themes
-- Build a dependency graph
-- Apply controlled palette migrations
-- Create screenshot test routes
-- Detect visual changes in pull requests
+## Roadmap
+
+The JSON index is the foundation for the next layers:
+
+- Semantic token generator
+- Light, dark, high-contrast and BlackMamba themes
+- Visual dependency graph
+- Controlled palette migrations
+- Screenshot route discovery
+- Pull-request visual change reports
+- Automated visual regression
