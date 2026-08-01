@@ -4,13 +4,13 @@ A macOS-friendly visual engineering control system that maps a repository before
 
 Source files remain untouched. Every proposal, graph, theme, baseline manifest, pixel comparison and test template is written into `.visual-index/` for review.
 
-## Current engine — v0.6
+## Current engine — v0.6.1
 
 - Inventories CSS/Sass/Less, components, layouts, assets, fonts and design files.
 - Detects frameworks, visual libraries, Storybook, Playwright and Cypress signals.
 - Finds color literals, CSS variables, keyframes, transitions and duplicate assets.
 - Resolves local imports and ranks dependency hotspots by visual impact.
-- Infers semantic tokens and generates light, dark, BlackMamba and high-contrast themes.
+- Infers semantic tokens and generates light, dark, BlackMamba, Neon Glass and high-contrast themes.
 - Corrects generated contrast pairs and records WCAG evidence.
 - Discovers Next.js, Nuxt, SvelteKit, Astro and static HTML routes.
 - Generates a Playwright screenshot matrix across themes and viewports.
@@ -39,6 +39,45 @@ Scan a project and open its dashboard:
 visual-index /path/to/project --open
 ```
 
+## BlackMamba Neon Glass
+
+The preset translates the voice-interface reference into a reusable component contract:
+
+```text
+headline: Just start talking
+panel:    Mic | elastic waveform | send
+helper:   Hold to record
+```
+
+State colors are intentionally separated:
+
+```text
+idle action       violet
+active microphone orange
+ready send        cyan
+panel structure   amber
+waveform          white
+```
+
+The generated component uses a wide, low, near-black glass panel with a continuous amber perimeter glow, rounded corners, left microphone control, elastic center waveform and right circular send action.
+
+Every scan produces:
+
+```text
+.visual-index/
+├── blackmamba-neon-glass.json
+├── blackmamba-neon-glass.css
+└── blackmamba-neon-glass-demo.html
+```
+
+Open the interactive preview on macOS:
+
+```bash
+open .visual-index/blackmamba-neon-glass-demo.html
+```
+
+The demo cycles through `idle`, `recording` and `ready-to-send`. Reduced-motion mode disables waveform animation.
+
 ## Changed-file impact
 
 ```bash
@@ -55,7 +94,7 @@ visual-index . \
 
 ## Baseline lifecycle
 
-Inventory the current screenshots:
+Inventory current screenshots:
 
 ```bash
 visual-index . --baseline-dir tests/visual-snapshots
@@ -74,7 +113,7 @@ visual-index . \
   --open
 ```
 
-The defaults mean:
+Defaults:
 
 - A pixel counts as changed when any RGB channel differs by more than `16`.
 - A screenshot passes when no more than `1%` of its pixels changed.
@@ -139,6 +178,9 @@ The runner uses `npx --no-install`; it stops with explicit setup instructions wh
 ├── pixel-diff.json
 ├── PIXEL_DIFF.md
 ├── pixel-diffs/
+├── blackmamba-neon-glass.json
+├── blackmamba-neon-glass.css
+├── blackmamba-neon-glass-demo.html
 ├── PR_VISUAL_SUMMARY.md
 └── run-visual-baseline.sh
 ```
@@ -154,7 +196,7 @@ visual-index . --check
 ## Safety contract
 
 1. Source projects are read-only.
-2. Generated themes never overwrite application code.
+2. Generated themes and presets never overwrite application code.
 3. Dynamic routes remain disabled until concrete examples are supplied.
 4. Baseline comparison uses hashes and metadata; it does not mutate screenshots.
 5. Pixel artifacts are written only under the selected report output directory.
